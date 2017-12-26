@@ -126,11 +126,7 @@ class area_map(object):
         self.map = cv2.imread(file_name, cv2.IMREAD_COLOR)
         self.offset = offset_xy
 
-lum2 = area_map('img\\lum2\\map.png',(-75+27*4,-127+58.5*4))
-lum3 = area_map('img\\lum3\\map.png',(-75+141,-127+255))
-
-areas = {'lum3':lum3,
-         'lum2':lum2
+areas = {
          }
 
 def show(img):
