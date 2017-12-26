@@ -1,6 +1,6 @@
 '''
 ABOUT:
-turn flax to bowstrings at lumbridge castle
+An example bot. Turn flax to bowstrings at lumbridge castle.
 
 REQUIREMENTS:
 - use default minimum window size
