@@ -6,6 +6,7 @@ REQUIREMENTS:
 - use default minimum window size
 - use default minimum zoom
 - use resizable mode
+- already entered bank pin
 - reset camera position (click compass)
 - hide chat
 - be anywhere on third floor of lumbridge castle
