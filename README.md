@@ -1,5 +1,5 @@
 # Old-School-RuneScape-Bot-API
-_I take no responsibility for any bans or other negative  that come of using this_ 
+_I take no responsibility for any bans or other damages that come of using this_ 
 
 #### Human input required files
 Human input API needs recordings for human mouse movements. Some prerecorded ones can be downloaded here. Put them in root.
