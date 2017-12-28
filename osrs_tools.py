@@ -118,7 +118,7 @@ compass_mid_xy = 605,22 #position of the middle of the compass on screen
 map_mid_xy = 684,85 #center position on map
 map_sz = 54#radius of minimap from center (uses a square for now)
 
-class clickTaskException(Exception):
+class botException(Exception):
     pass
 
 class area_map(object):
@@ -174,30 +174,34 @@ def screenshot(box = None,target_game_window=True):
     cv_im =  cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     return cv_im
 
-def match_template(image,template,min_match=-1):
-    '''returns top left position of best match for image
+def match_template(image,template,min_match=-1,error=False):
+    '''returns top left position of best match for image 
 
     Keyword arguments:
     image -- the image template is inside
     template -- the image to find inside of image
-    min_match -- minimum match before None should be returned 0.0-1.0 (default -1.0)
+    min_match -- minimum match before fail 0.0-1.0 (default -1.0)
+    error -- if fail, raise error instead of return none (default = False)
     '''
     #setup mask layer
     mask = None
     if template.shape[2] == 4:
         t_channels = cv2.split(template)
-        template = cv2.merge([t_channels[i] for i in range(3)])
-        mask = cv2.merge([t_channels[3] for i in range(3)])
+        template = cv2.merge(t_channels[:3])
+        mask = cv2.merge([t_channels[3]]*3)
     
     match = cv2.minMaxLoc(cv2.matchTemplate(image, template ,cv2.TM_CCORR_NORMED,mask=mask))
     if min_match > match[1]:
+        if error:
+            raise botException("failed to match a template")
         return None
 
     return match[3],match[1] 
 
 def get_text_xy(
         text,box=None,font_name="default",
-        l_gap=1,r_gap=4,t_gap=1,y_height=17,relative=False):
+        l_gap=1,r_gap=4,t_gap=1,y_height=17,
+        relative=False, error=False):
     '''Return position of text in game
 
     Keyword arguments:
@@ -208,6 +212,7 @@ def get_text_xy(
     t_gap -- extra above rows to scan for non leading chars (default 1)
     y_height -- total rows to scan for non leading chars (default 17)
     relative -- return xy relative to box top left (default False)
+    error -- if fail, raise error instead of return none (default = False)
     '''
     if box == None:
         box = (0,0,*win_sz)
@@ -220,7 +225,7 @@ def get_text_xy(
     
     for i in range(view.shape[0]):
         for j in range(view.shape[1]):
-            if view[i,j][0] > 70 or view[i,j][1] > 70 or view[i,j][2] > 70:
+            if max(view[i,j]) > 70:
                mono_view[i,j] = 208
                
     #For every potential first character
@@ -239,24 +244,25 @@ def get_text_xy(
             if not char in def_font.keys():
                 raise ValueError(char + " isn't included in def_font yet.")
             
-            
-            #if dont see char in proper space stop looking
+            #if char not in expected area stop looking
             char_space = mono_view[y:y+y_height ,next_x-l_gap:next_x + font[char].shape[1]+r_gap] #space character could be in
-
             _,max_val,_,max_xy = cv2.minMaxLoc(cv2.matchTemplate(char_space, font[char] ,cv2.TM_CCORR_NORMED,mask=font_mask[char]))
             max_xy = max(max_xy[0],0),max_xy[1]
-
             if max_val < 0.984:
-                break 
+                break
+            
             next_x += max_xy[0] + font[char].shape[1] #start of next place to look
         else:
             if relative:
                 return pt
             return sum_i(pt,box[:2])
+    if error:
+        raise botException("could not find text xy")
     return None
 
-def get_win_xy():
-    '''return xy of game window's top left corner on screen'''
+def calibrate_win_xy(error=False):
+    '''return if successfully set win_xy to xy of window's top left corner on screen'''
+    global win_xy
     view = screenshot(target_game_window = False)
 
     #find key points
@@ -269,9 +275,15 @@ def get_win_xy():
         abs(harp_xy[1] - all_xy[1]+13) < 3 and
         abs(harp_xy[0] - compass_xy[0] - 134) < 3 and
         abs(harp_xy[1] - compass_xy[1] - 457) < 10):
-        return compass_xy[0] - 602, compass_xy[1]-15
+        win_xy = (compass_xy[0] - 602, compass_xy[1]-15)
+        return True
+    if error:
+        raise botException("Make sure window is visible and min default size")
+    return False
 
-    raise ValueError("Make sure window is visible and min default size")
+def get_win_xy():
+    '''return value of win_xy'''
+    return win_xy
 
 NORTH = 0
 EAST = 90
@@ -281,8 +293,7 @@ WEST = -90
 def get_direction(use_radians = False):
     '''return direction of compass
        N=0,E=90,S=+-180,W=-90
-
-    Keyword arguments:
+   Keyword arguments:
     use_radians -- return direction in radians instead of degrees
     '''
     NEEDLE_RADIUS = 9
@@ -299,17 +310,17 @@ def get_direction(use_radians = False):
         for y in range(NEEDLE_RADIUS*2):
             pxl_dist = dist((x - NEEDLE_RADIUS,y - NEEDLE_RADIUS),(0,0,0))
             b_chan,g_chan,r_chan = view[y,x]
+            
             if (red_dist < pxl_dist and g_chan < 30
                    and b_chan < 30 and r_chan > 30):
                best_red = math.atan2( x - NEEDLE_RADIUS,NEEDLE_RADIUS-y )
                red_dist = pxl_dist
 
     if (best_red == None):
-        raise ValueError("Game window must be miscalibrated!")
+        raise botException("Game window must be miscalibrated!")
 
     return best_red if use_radians else math.degrees(best_red)
                             
-            
 compass_box = (596,12,622,33)
 def fix_compass():
     '''Adjusts the compass to be north if it is not already.'''
@@ -387,12 +398,21 @@ def get_xy(area=None):
 
     #get map coords
     xy = match_template(areas[area].map, view, .8)[0]
-
+    if not xy:
+        raise botException("can not find position")
     #convert to game coords
     xy = sub_i(xy,areas[area].offset) #xy[0] - areas[area].offset[0], xy[1] - areas[area].offset[1]
     return xy[0]/4,xy[1]/4
 
-def wait_to_move(area=None,max_time=10,check_freq=0.75):
+def wait_to_move(area=None,max_time=10,check_freq=0.75,error=False):
+    '''return game xy player stops moving at or None if taking too long.
+
+    Keyword arguments:
+    area -- name of player's game area, or None to find name using get_area (default None)
+    max_time -- wait time before fail (default 10.0)
+    check_freq -- time between checks for xy change (default 0.75)
+    error -- if fail, raise error instead of return none (default = False)
+    '''
     if area == None:
         area = get_area()
         
@@ -403,15 +423,18 @@ def wait_to_move(area=None,max_time=10,check_freq=0.75):
         if start_xy != get_xy(area):
             return True
         time.sleep(check_freq)
+    if error:
+        raise botException("never detected movement")
     return False
 
-def get_stop_xy(area=None,max_time=10,check_freq = 0.75):
+def get_stop_xy(area=None,max_time=10,check_freq = 0.75, error=False):
     '''return game xy player stops moving at or None if taking too long.
 
     Keyword arguments:
     area -- name of player's game area, or None to find name using get_area (default None)
-    max_time -- wait time before program should return None for error (default 10.0)
-    check_freq -- time between checks for xy change (default 0.5)
+    max_time -- wait time before fail (default 10.0)
+    check_freq -- time between checks for xy change (default 0.75)
+    error -- if fail, raise error instead of return none (default = False)
     '''
     if area == None:
         area = get_area()
@@ -425,7 +448,9 @@ def get_stop_xy(area=None,max_time=10,check_freq = 0.75):
             return new_xy
         last_xy = new_xy
         time.sleep(check_freq)
-        
+
+    if error:
+        raise botException("never detected stop of movement")
     return None
 
 
@@ -449,7 +474,7 @@ def click_on_map(xy,cur_xy,click_closest = True):
     hi.human_click(sum_i(map_to_rxy,map_mid_xy,win_xy))
     return move_dist < MAP_RADIUS
     
-def travel_to(xy,area=None,wait_speed=1,max_time=15,return_early=False,readjust=True):
+def travel_to(xy,area=None,wait_speed=1,max_time=15,return_early=False,readjust=True,error = False):
     '''return if succesfully moved to position xy of area by clicking the minimap 
 
     Keyword arguments:
@@ -461,6 +486,7 @@ def travel_to(xy,area=None,wait_speed=1,max_time=15,return_early=False,readjust=
                     using True can cause character to not be perfectly positioned
     readjust -- readjust if not at xy after last click when not returning early
                 this can be needed on slower computers or when running
+    error -- if fail, raise error instead of return none (default = False)
     '''
 
     start_time = time.time()
@@ -468,6 +494,7 @@ def travel_to(xy,area=None,wait_speed=1,max_time=15,return_early=False,readjust=
     if area==None:
         area = get_area()
     start_xy = get_xy(area)
+    
     #click on map till click on proper value
     while not click_on_map(xy,get_xy(area)):
         time.sleep(hi.rrg(4,1,3,5)*wait_speed)
@@ -477,9 +504,9 @@ def travel_to(xy,area=None,wait_speed=1,max_time=15,return_early=False,readjust=
     else:
         if not return_early:
 
-            wait_to_move(area,5)
-                
+            wait_to_move(area,5)            
             cur_xy = get_stop_xy(area)
+            
             if( cur_xy != xy and readjust): #readjust if not in position
                 click_on_map(xy,cur_xy)
                 get_stop_xy()
@@ -487,22 +514,27 @@ def travel_to(xy,area=None,wait_speed=1,max_time=15,return_early=False,readjust=
     return False
 
 
-def wait_to_see(img,box=None,min_match=0.9,max_time=10,check_freq=0.33,leave = False):
-    '''returns whether or not saw image withing wait time
+def wait_to_see(img,box=None,min_match=0.9,max_time=10,check_freq=0.33,leave = False,error=False):
+    '''returns whether or not saw image within wait time
 
     Keywork arguments:
     img -- the image to scan for
     box -- region within screen to limit scan (default None)
     min_match -- minimim amount the image must match (default 0.9)
-    max_time -- maximum time to wait to see image (default 10)
+    max_time -- wait time before fail (default 10)
     check_freq -- time between checks for image (default 0.33)
     leave -- if waiting for img to leave instead of appear (default False)
+    error -- if fail, raise error instead of return none (default = False)
     '''
     start_time = time.time()
     while (time.time()-start_time < max_time):
         if (match_template(screenshot(box),img,min_match) != None) != leave:
             return True
         time.sleep(check_freq)
+    if error:
+        if leave:
+            raise botException("image never left vision")
+        raise botException("never saw image")
     return False
 
 def click_inv(slot=0,key='left'):
@@ -581,20 +613,34 @@ class click_task(object):
                 return sum_i(max_xy,self.img_box[:2])    
         return None
     
-    def wait_to_see(self,max_time=10,check_freq=0.33,leave=False):
+    def ready_wait(self,max_time=10,check_freq=0.33,leave=False,error=True):
+        '''wait to be in position and able to see img
+        
+        Keyword arguments:
+        max_time -- wait time before fail (default 10.0)
+        check_freq -- time between checks for xy change (default 0.75)
+        leave -- wait to not be ready instead (defult None)
+        error -- if fail, raise error instead of return none (default = False)
+        '''
         start_time = time.time()
         while ( time.time() - start_time < max_time):
             if (self.is_positioned() and self.get_img_xy()!=None ) != leave:
                 return True
             time.sleep(check_freq)
+
+        if error:
+            raise botException("never stopped being ready")
+        raise botException("never ready")
         return False
     
-    def exec(self,click_box_id=None):
+    def exec(self,click_box_id=None,error = False):
         '''try to perform click task
 
         Keyword arguments:
         click_box_id -- the index of the click box that should be use in the list of click boxes
-                        or None for random box (default None)'''
+                        or None for random box (default None)
+        error -- if fail, raise error instead of return none (default = False)
+        '''
 
         #find reference image location
         if not self.is_positioned():
@@ -622,8 +668,6 @@ class click_task(object):
                 hi.human_click(key=self.key)
                 return True
             time.sleep(hi.rrg(0.25,0.1,0.175,2))
-
+        if error:
+            raise botException("failed to click")
         return False
-
-win_xy = get_win_xy()
-
