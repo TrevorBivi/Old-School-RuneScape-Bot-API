@@ -266,9 +266,9 @@ def calibrate_win_xy(error=False):
     view = screenshot(target_game_window = False)
 
     #find key points
-    harp_xy = match_template(view,harp_im,0.95)[0]  #cv2.minMaxLoc(cv2.matchTemplate(screen_view, harp_im ,eval('cv2.TM_CCOEFF_NORMED')))[3]
-    all_xy = match_template(view,chat_all_im,0.95)[0]  #cv2.minMaxLoc(cv2.matchTemplate(screen_view, chat_all_im ,eval('cv2.TM_CCOEFF_NORMED')))[3]
-    compass_xy = match_template(view,compass_im,0.98)[0]  #cv2.minMaxLoc(cv2.matchTemplate(screen_view, compass_im ,eval('cv2.TM_CCOEFF_NORMED')))[3]
+    harp_xy = match_template(view,harp_im,0.95)[0]  
+    all_xy = match_template(view,chat_all_im,0.95)[0]  
+    compass_xy = match_template(view,compass_im,0.98)[0]
 
     #if key points are in correct relative positions
     if (abs(harp_xy[0] - all_xy[0]-710) < 3 and
