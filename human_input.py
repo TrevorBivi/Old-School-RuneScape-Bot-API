@@ -24,7 +24,7 @@ import warnings
 
 warnings.simplefilter('module', UserWarning)
 
-#Giant dictonary to hold key name and VK value
+#virtual key codes for keyboard events
 VK_CODE = {'backspace':0x08,
            'tab':0x09,
            'enter':0x0D,
@@ -113,6 +113,7 @@ VK_CODE = {'backspace':0x08,
            "'":0xDE,
 }
 
+#pretend hardware scan codes for key presses
 HS_CODE = {'backspace':0x0E,
            'tab':0x0F,
            'enter':0x1C,
@@ -238,11 +239,11 @@ def key_up(key):
     wapi.keybd_event(VK_CODE[key], HS_CODE[key],wcon.KEYEVENTF_KEYUP ,0)
 
 def mouse_move(xy,relative_xy=(0,0)):
-    '''send mouse movement event to mouse input stream
+    '''send mouse move event to mouse input stream
 
     Keyword arguments:
     xy -- position to move to on screen
-    relative_xy -- point to move relative to (default tuple(0,0))
+    relative_xy -- point to move relative to (default (0,0))
     '''
     #convert to [system]
     new_x,new_y = [(xy[i]+relative_xy[i]+1)*65535/wapi.GetSystemMetrics(i) for i in range(2)]
@@ -251,7 +252,7 @@ def mouse_move(xy,relative_xy=(0,0)):
     wapi.mouse_event(wcon.MOUSEEVENTF_ABSOLUTE|wcon.MOUSEEVENTF_MOVE,int(new_x),int(new_y))
 
 def mouse_down(key='left',xy=None):
-    '''send mouse click to the mouse input stream'''
+    '''send mouse down event to the mouse input stream'''
 
     #get position to press at
     x,y = None,None
@@ -286,7 +287,7 @@ def mouse_up(key='left',xy=None):
         raise ValueError('invalid key')
 
 def new_rec(end_wait=0.5):
-    '''return a new mouse movement recording
+    '''record then return a new mouse movement recording
 
     Keyword arguments:
     end_wait -- time mouse must stay still to signify end of recording
@@ -330,7 +331,7 @@ def rec_session(end_wait=0.5):
 You are now using the recording maker.
 
 Commands:
-(empty)      -- Make a mouse recording. Finishes when mouse stops moving for 0.25s
+(empty)      -- Make a mouse recording. Finishes when mouse stops moving for 0.5s
 p            -- play back last recording
 p<int>       -- play back recording at index
 p<int>:<int> -- play back multiple recordings
@@ -387,12 +388,12 @@ f            -- finish and return recordings
             elif c == "d" and rec_amnt > 0: 
                  if v2:
                     recs = recs[0:v1] + recs[v2:]
-                 elif v1:
+                 else:
                     del recs[v1]
                  print("# recordings:",len(recs))
 
 def read_recs(filename):
-    '''return a mouse movement recording saved to the harddrive'''
+    '''return list of mouse movement recordings that are saved to the harddrive'''
     moves = []
     file = open(filename,'r')
     actions = []
