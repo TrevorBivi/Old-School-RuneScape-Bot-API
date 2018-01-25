@@ -3,7 +3,7 @@ ABOUT:
 An API for making hard to detect Old School Runescape bots using pixel colors and controlling the users mouse and keyboard
 
 IMPORTANT CLASSES:
-area_map -- contains map image and name of area
+area_map -- contains map image and game coordinates at top right of map
 click_task -- used to click somewhere relative to an key image - see class doc for more info
 
 IMPORTANT METHODS:
@@ -205,7 +205,7 @@ def get_text_xy(
     '''Return position of text in game
 
     Keyword arguments:
-    box -- the area on in the game window to look for the text (default where primary action text is)
+    box -- the area on in the game window to look for the text (default entire game window)
     font_name -- name of font to use (default "default")
     l_gap -- extra left columns to scan for non leading chars (default 1)
     r_gap -- extra right columns to scan for non leading chars (default 3)
